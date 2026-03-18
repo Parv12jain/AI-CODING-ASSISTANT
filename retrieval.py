@@ -1,3 +1,4 @@
+
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_mistralai import ChatMistralAI
@@ -12,36 +13,51 @@ class RAGPipeline:
     def __init__(self, persist_directory="db/Chroma_db"):
         self.persist_directory = persist_directory
 
-        # Embedding model
+        
         self.embedding_model = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
 
-        # Load vector store
-        self.vector_store = Chroma(
-            persist_directory=self.persist_directory,
-            embedding_function=self.embedding_model
-        )
+        
+        if not os.path.exists(self.persist_directory):
+            print("Creating DB from PDFs...")
 
-        # API key check
+            from rag import load_documents, split_documents, create_vector_store
+
+            docs = load_documents()
+            chunks = split_documents(docs)
+
+            self.vector_store = create_vector_store(chunks)
+
+        else:
+            print("Loading existing DB...")
+
+            self.vector_store = Chroma(
+                persist_directory=self.persist_directory,
+                embedding_function=self.embedding_model
+            )
+
+        
         api_key = os.getenv("MISTRAL_API_KEY")
         if not api_key:
             raise ValueError("MISTRAL_API_KEY not found in .env")
 
-        # Gemini LLM
+        
         self.llm = ChatMistralAI(
             model="mistral-small",
-            temperature=0.3
+            temperature=0.3,
+            api_key=api_key
         )
 
-    # ✅ OUTSIDE __init__
-    def retrieve(self, query, k):
+    
+    def retrieve(self, query, k=5):
         retriever = self.vector_store.as_retriever(
             search_type="similarity",
             search_kwargs={"k": k}
         )
         return retriever.invoke(query)
 
+    
     def generate_response(self, query, retrieved_docs):
         context = "\n\n".join([doc.page_content for doc in retrieved_docs])
 
@@ -68,6 +84,7 @@ Answer:
 
         return getattr(response, "content", str(response))
 
+ 
     def run_rag(self, query, k=5):
         retrieved_docs = self.retrieve(query, k)
 
