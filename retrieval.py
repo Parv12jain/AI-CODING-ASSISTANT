@@ -1,8 +1,10 @@
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_mistralai import ChatMistralAI
 from dotenv import load_dotenv
+import os
 
+# Load env variables
 load_dotenv()
 
 
@@ -17,22 +19,30 @@ class RAGPipeline:
 
         # Load vector store
         self.vector_store = Chroma(
-            persist_directory=persist_directory,
+            persist_directory=self.persist_directory,
             embedding_function=self.embedding_model
         )
 
+        # API key check
+        api_key = os.getenv("MISTRAL_API_KEY")
+        if not api_key:
+            raise ValueError("MISTRAL_API_KEY not found in .env")
+
         # Gemini LLM
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
+        self.llm = ChatMistralAI(
+            model="mistral-small",
             temperature=0.3
         )
 
-    def retrieve(self, query, k=3):
-        return self.vector_store.similarity_search(query, k=k)
+    # ✅ OUTSIDE __init__
+    def retrieve(self, query, k):
+        retriever = self.vector_store.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": k}
+        )
+        return retriever.invoke(query)
 
     def generate_response(self, query, retrieved_docs):
-        """Generate response using retrieved documents"""
-
         context = "\n\n".join([doc.page_content for doc in retrieved_docs])
 
         prompt = f"""
@@ -56,15 +66,17 @@ Answer:
 
         response = self.llm.invoke(prompt)
 
-        return response.content
+        return getattr(response, "content", str(response))
 
     def run_rag(self, query, k=5):
-        """Run the complete RAG pipeline"""
         retrieved_docs = self.retrieve(query, k)
+
         response = self.generate_response(query, retrieved_docs)
+
         print("\nSources:")
         for doc in retrieved_docs:
             print(doc.metadata.get("source"))
+
         return response
 
 
@@ -72,7 +84,6 @@ if __name__ == "__main__":
     rag_pipeline = RAGPipeline()
 
     query = "What is BERT?"
-
     response = rag_pipeline.run_rag(query)
 
     print("\nAnswer:\n")
