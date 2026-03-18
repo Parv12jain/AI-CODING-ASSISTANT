@@ -19,7 +19,7 @@ class RAGPipeline:
         )
 
         
-        if not os.path.exists(self.persist_directory):
+        if not os.path.exists(self.persist_directory) or len(os.listdir(self.persist_directory)) == 0:
             print("Creating DB from PDFs...")
 
             from rag import load_documents, split_documents, create_vector_store
