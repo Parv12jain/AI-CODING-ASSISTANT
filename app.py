@@ -1,57 +1,39 @@
 import streamlit as st
 from retrieval import RAGPipeline
 
-# Page configuration
-st.set_page_config(
-    page_title="AI Research Assistant",
-    page_icon="🤖",
-    layout="wide"
-)
+st.set_page_config(page_title="AI Assistant", page_icon="🤖")
 
-# Initialize RAG
-rag = RAGPipeline()
-
-# Sidebar
-with st.sidebar:
-    st.title("⚙️ Settings")
-    st.markdown("### Retrieval Settings")
-    k = st.slider("Number of documents to retrieve", 1, 10, 5)
-
-    st.markdown("---")
-    st.markdown("### About")
-    st.write(
-        "This AI assistant answers questions using your research papers "
-        "through Retrieval-Augmented Generation (RAG)."
-    )
-
-# Main Title
 st.title("🤖 AI Research Assistant")
-st.markdown("Ask questions about your research papers and get AI-powered answers.")
+
+@st.cache_resource
+def load_pipeline():
+    return RAGPipeline()
+
+rag_pipeline = load_pipeline()
 
 # Chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display chat history
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# Display chat
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
 
-# Chat input
-query = st.chat_input("Ask something about your research papers...")
+# Input
+query = st.chat_input("Ask something...")
 
 if query:
-
-    # Display user message
+    # User message
     st.session_state.messages.append({"role": "user", "content": query})
     with st.chat_message("user"):
-        st.markdown(query)
+        st.write(query)
 
-    # Generate response
+    # AI response
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            answer = rag.run_rag(query, k=k)
+            response = rag_pipeline.run_rag(query)
 
-        st.markdown(answer)
+            st.write(response)
 
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.session_state.messages.append({"role": "assistant", "content": response})
